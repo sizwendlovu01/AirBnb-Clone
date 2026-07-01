@@ -21,7 +21,12 @@ function connectDB() {
       connectionPromise = null;
     });
 
-    connectionPromise = mongoose.connect(process.env.MONGO_URI).then(() => mongoose.connection);
+    // Pinned explicitly so a MONGO_URI without a path segment (e.g.
+    // ".../?appName=...") can't silently fall back to MongoDB's default
+    // "test" database instead of this app's actual database.
+    connectionPromise = mongoose
+      .connect(process.env.MONGO_URI, { dbName: 'airbnb-clone' })
+      .then(() => mongoose.connection);
   }
 
   return connectionPromise;
