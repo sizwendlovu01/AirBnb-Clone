@@ -1,0 +1,14 @@
+{
+  "name": "airbnb-clone",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Full-stack Airbnb clone: guest frontend + host admin dashboard + Node/Express/MongoDB API",
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "seed": "npm run seed --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
