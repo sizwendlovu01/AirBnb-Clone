@@ -225,7 +225,7 @@ sequenceDiagram
 ```mermaid
 flowchart TB
     subgraph Vercel["Vercel Project — Root Directory: repo root"]
-        VJ["root vercel.json<br/>builds: frontend (@vercel/static-build) + backend/api/index.js (@vercel/node)<br/>routes: /api/* → backend, /* → frontend/dist"]
+        VJ["root vercel.json<br/>builds: frontend (@vercel/static-build) + backend/api/index.js (@vercel/node)<br/>routes: /api/* → backend, then filesystem (real static files), else → frontend/dist/index.html (SPA fallback)"]
         Static["Static hosting + CDN<br/>frontend/dist"]
         Fn["Serverless Function<br/>backend/api/index.js → app.js"]
     end
