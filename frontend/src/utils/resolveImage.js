@@ -1,4 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Same reasoning as axiosClient.js: only used for the legacy /uploads branch
+// below (dead in practice — images are stored as base64 data URIs now), and
+// an empty default resolves to a same-origin path rather than a hardcoded,
+// production-wrong localhost URL.
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Verified real-estate photos (exteriors/interiors, individually checked —
 // no random stock photography) used when a listing has no images of its own,

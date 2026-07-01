@@ -214,19 +214,26 @@ The backend has no build step (plain CommonJS Node.js).
 
 ## Deployment
 
-Deployed as **two separate Vercel projects** against this same repository — see the
-full step-by-step (env vars, MongoDB Atlas network access, why two projects instead of
-one) in [`docs/EXECUTIVE_DOCUMENTATION.md`](docs/EXECUTIVE_DOCUMENTATION.md) §10.
+Deployed as **one Vercel project** at the repo root, using a root-level `vercel.json`
+that builds both halves and serves them from the same domain: the frontend at `/` and
+the API at `/api/*`. No CORS is required in this setup since both are same-origin.
 
-Quick version:
+- **Root Directory** (Vercel dashboard → Project Settings → General): leave **blank**
+  (the repo root) — not `frontend` or `backend`.
+- **Environment variables** (all in this one project):
+  | Variable | Value |
+  |---|---|
+  | `MONGO_URI` | your MongoDB Atlas connection string |
+  | `JWT_SECRET` | a long random string |
+  | `JWT_EXPIRES_IN` | `7d` |
 
-| Project | Root Directory | Key env vars |
-|---|---|---|
-| Backend | `backend` | `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL` |
-| Frontend | `frontend` | `VITE_API_URL` |
+  `CLIENT_URL` and `VITE_API_URL` are **not needed** in this setup — leave them unset so
+  the frontend calls the API via a same-origin relative path.
+- MongoDB Atlas → Network Access → allow `0.0.0.0/0` (serverless functions have no static IP).
 
-Both `backend/vercel.json` (serverless rewrite) and `frontend/vercel.json` (SPA
-fallback rewrite) are already committed.
+Full step-by-step, plus the alternate two-project setup (`backend/vercel.json` +
+`frontend/vercel.json` are still committed and valid if you ever prefer that instead):
+[`docs/EXECUTIVE_DOCUMENTATION.md`](docs/EXECUTIVE_DOCUMENTATION.md) §10.
 
 ## API Documentation Summary
 
@@ -284,7 +291,10 @@ curl -X POST http://localhost:5000/api/reservations \
   recommendation in [`docs/CODE_QUALITY_REVIEW.md`](docs/CODE_QUALITY_REVIEW.md).
 - **No rate limiting** exists on `/login` or `/register` — do not deploy this as-is
   somewhere that needs brute-force protection without adding `express-rate-limit` first.
-- CORS `origin` **defaults to `*`** if `CLIENT_URL` is unset — always set it explicitly in production.
+- CORS `origin` **defaults to `*`** if `CLIENT_URL` is unset. Not a concern in the
+  default single-project same-origin deployment (browsers don't apply CORS checks to
+  same-origin requests at all) — but if you use the alternate two-project setup, set
+  `CLIENT_URL` explicitly.
 - Passwords are bcrypt-hashed (10 rounds) and never returned by default queries.
 - Ownership is re-checked server-side on every listing/reservation mutation, not just role.
 
@@ -298,7 +308,8 @@ Full security analysis: [`docs/EXECUTIVE_DOCUMENTATION.md`](docs/EXECUTIVE_DOCUM
 | `401 Not authorized` on every request | Token missing/expired — log in again; check `Authorization: Bearer <token>` is actually being sent. |
 | `403 Only hosts can perform this action` | The logged-in account has `role: 'user'`, not `'host'` — register with the "I want to host" checkbox, or use the seeded host account. |
 | Images fail to upload | File exceeds 1.5MB or more than 5 images submitted — both are enforced server-side (see §6.2 in the executive doc), returns `400`. |
-| CORS error in the browser console | `CLIENT_URL` on the backend doesn't match the frontend's actual origin. |
+| CORS error in the browser console | Shouldn't happen in the default single-project deployment (same-origin). If using the two-project setup, `CLIENT_URL` on the backend doesn't match the frontend's actual origin. |
+| `vite: command not found` during Vercel build | Root Directory is set wrong for the project/build type in use — see §10 in the executive doc for the exact settings per approach. |
 | `Mongo connection error` on startup | `MONGO_URI` unset/incorrect, or (Atlas) your IP isn't allow-listed under Network Access. |
 | Frontend routes 404 on refresh (production) | `frontend/vercel.json`'s SPA rewrite isn't deployed/detected — confirm the file exists at the frontend project's root directory. |
 

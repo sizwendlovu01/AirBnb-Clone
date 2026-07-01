@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Local dev sets VITE_API_URL to the backend's own port (cross-origin). In the
+// single-Vercel-project deployment, frontend and backend share one domain, so
+// VITE_API_URL is intentionally left unset and this resolves to a same-origin
+// relative path ("/api") instead of a hardcoded (and wrong, in production) localhost URL.
+const baseURL = import.meta.env.VITE_API_URL || '';
 
 const axiosClient = axios.create({ baseURL: `${baseURL}/api` });
 

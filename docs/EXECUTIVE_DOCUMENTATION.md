@@ -896,15 +896,30 @@ project (frontend + backend) pointed at a separate Atlas database/branch, using 
 deployment mechanics described below for production.
 
 ### Production environment
-Two independent Vercel projects, per `README.md` §8:
-- **Backend project**, root directory `backend/`. `vercel.json` rewrites all paths to
-  `api/index.js` (the serverless entry point, which exports the plain Express `app`).
-  Environment variables (`MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `CLIENT_URL`) are
-  set via the Vercel dashboard, not a committed file.
-- **Frontend project**, root directory `frontend/`. Vercel auto-detects the Vite
-  framework preset (`vite build` → `dist/`); `vercel.json` adds an SPA fallback rewrite
-  (`/(.*) → /index.html`) so client-side routes survive a direct load/refresh.
-  `VITE_API_URL` is set to the backend project's URL.
+
+**Primary approach: one Vercel project, repo root.** A root-level `vercel.json` defines
+two `builds` (frontend via `@vercel/static-build`, backend via `@vercel/node`) and
+`routes` that send `/api/*` to the backend function and everything else to the
+frontend's built `index.html`. Both halves are served from the same domain, so no CORS
+configuration is needed between them.
+
+- **Root Directory** (Vercel dashboard): left blank — the repo root, not `frontend` or `backend`.
+- **Environment variables** (all in this one project): `MONGO_URI`, `JWT_SECRET`,
+  `JWT_EXPIRES_IN`. `CLIENT_URL` and `VITE_API_URL` are intentionally left **unset** —
+  `axiosClient.js`'s `baseURL` falls back to `''` (same-origin relative `/api`) when
+  `VITE_API_URL` isn't set, rather than a hardcoded `localhost` URL.
+- MongoDB Atlas → Network Access → `0.0.0.0/0` (serverless functions have no static outbound IP).
+
+**Alternate approach: two independent Vercel projects** (still fully supported —
+`backend/vercel.json` and `frontend/vercel.json` remain committed for this path):
+- **Backend project**, root directory `backend/`. Its own `vercel.json` rewrites all
+  paths to `api/index.js`. Environment variables: `MONGO_URI`, `JWT_SECRET`,
+  `JWT_EXPIRES_IN`, and `CLIENT_URL` set to the frontend project's URL (required here,
+  since the two projects are different origins and CORS applies).
+- **Frontend project**, root directory `frontend/`. Its own `vercel.json` adds the SPA
+  fallback rewrite. `VITE_API_URL` set to the backend project's URL.
+- Trade-off vs. the single-project approach: two dashboards/URLs to manage, but
+  independent redeploys (a frontend-only change doesn't rebuild the backend, and vice versa).
 
 ### Build process
 - Frontend: `vite build` — type-checking is **not** part of the build (this is a

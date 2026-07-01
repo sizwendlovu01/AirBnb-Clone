@@ -220,39 +220,72 @@ sequenceDiagram
 
 ## 6. Deployment Architecture
 
+### 6.1 Primary approach — one Vercel project (repo root)
+
 ```mermaid
 flowchart TB
-    subgraph VercelFE["Vercel Project #1 — Root: frontend/"]
-        Build1["vite build → dist/"]
-        CDN["Static hosting + CDN"]
-        Rewrite1["vercel.json:<br/>/(.*) → /index.html<br/>(SPA fallback)"]
-    end
-
-    subgraph VercelBE["Vercel Project #2 — Root: backend/"]
-        Rewrite2["vercel.json:<br/>/(.*) → /api/index"]
-        Fn["Serverless Function<br/>api/index.js → app.js"]
+    subgraph Vercel["Vercel Project — Root Directory: repo root"]
+        VJ["root vercel.json<br/>builds: frontend (@vercel/static-build) + backend/api/index.js (@vercel/node)<br/>routes: /api/* → backend, /* → frontend/dist"]
+        Static["Static hosting + CDN<br/>frontend/dist"]
+        Fn["Serverless Function<br/>backend/api/index.js → app.js"]
     end
 
     subgraph Atlas["MongoDB Atlas"]
         DB[("Cluster<br/>Network Access: 0.0.0.0/0")]
     end
 
-    EnvFE["Env: VITE_API_URL"] -.-> Build1
-    EnvBE["Env: MONGO_URI, JWT_SECRET,<br/>JWT_EXPIRES_IN, CLIENT_URL"] -.-> Fn
+    EnvBE["Env: MONGO_URI, JWT_SECRET, JWT_EXPIRES_IN<br/>(CLIENT_URL / VITE_API_URL intentionally unset)"] -.-> Fn
 
-    User(["End user browser"]) -->|GET /| CDN
-    CDN --> Rewrite1
-    User -->|"fetch(VITE_API_URL + /api/...)"| Rewrite2
-    Rewrite2 --> Fn
+    User(["End user browser"]) -->|"GET yourapp.vercel.app/"| VJ
+    VJ --> Static
+    User -->|"fetch('/api/...') — same origin, no CORS needed"| VJ
+    VJ --> Fn
     Fn <-->|Mongoose, cached connection| DB
 
-    style VercelFE fill:#f5f5ff
-    style VercelBE fill:#fff5f5
+    style Vercel fill:#f5f5ff
     style Atlas fill:#f0fff4
 ```
 
-**Why two projects, not one:** the frontend is a static SPA build with its own
-framework preset (Vite) and the backend is a Node API best run as serverless functions
-— different build steps, different runtimes. Keeping them as two Vercel projects (a
-common pattern for MERN-style apps on Vercel) means either half can be redeployed
-independently and neither `vercel.json` has to do double duty.
+Same domain serves both: `yourapp.vercel.app/` (frontend) and
+`yourapp.vercel.app/api/*` (backend). Because the browser sees both as the same origin,
+no CORS configuration is needed — `axiosClient.js`'s `baseURL` falls back to a relative
+`/api` path when `VITE_API_URL` isn't set.
+
+### 6.2 Alternate approach — two Vercel projects
+
+```mermaid
+flowchart TB
+    subgraph VercelFE["Vercel Project #1 — Root: frontend/"]
+        Build1["vite build → dist/"]
+        CDN["Static hosting + CDN"]
+        Rewrite1["frontend/vercel.json:<br/>/(.*) → /index.html<br/>(SPA fallback)"]
+    end
+
+    subgraph VercelBE["Vercel Project #2 — Root: backend/"]
+        Rewrite2["backend/vercel.json:<br/>/(.*) → /api/index"]
+        Fn2["Serverless Function<br/>api/index.js → app.js"]
+    end
+
+    subgraph Atlas2["MongoDB Atlas"]
+        DB2[("Cluster<br/>Network Access: 0.0.0.0/0")]
+    end
+
+    EnvFE["Env: VITE_API_URL"] -.-> Build1
+    EnvBE2["Env: MONGO_URI, JWT_SECRET,<br/>JWT_EXPIRES_IN, CLIENT_URL"] -.-> Fn2
+
+    User2(["End user browser"]) -->|GET /| CDN
+    CDN --> Rewrite1
+    User2 -->|"fetch(VITE_API_URL + /api/...) — cross-origin, CORS applies"| Rewrite2
+    Rewrite2 --> Fn2
+    Fn2 <-->|Mongoose, cached connection| DB2
+
+    style VercelFE fill:#f5f5ff
+    style VercelBE fill:#fff5f5
+    style Atlas2 fill:#f0fff4
+```
+
+**Trade-off:** the two-project setup lets either half redeploy independently (a
+frontend-only change doesn't rebuild the backend function, and vice versa), at the cost
+of two dashboards/URLs and requiring `CLIENT_URL`/CORS between them. The single-project
+approach in §6.1 is simpler to operate day-to-day and is the current default; both are
+fully supported since both sets of config files remain committed.
